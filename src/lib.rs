@@ -214,18 +214,19 @@ impl Universe {
 
             return match next_cell {
                 Cell::Food => {
-                    //add cell
+                    //add head
                     let old_head = self.snake.front().unwrap().clone();
                     self.snake.push_front(next_head);
 
-                    //update grid
+                    //update old head
                     let old_head_index = self.get_index(old_head);
                     self.cells[old_head_index] = Cell::Tail;
 
+                    //update new head
                     let new_head_index = self.get_index(next_head);
                     self.cells[new_head_index] = Cell::Head;
 
-                    //TODO: reseed food
+                    //update food
                     let new_food_coordinates = self.random_cell_for_food();
                     let new_food_idx = self.get_index(new_food_coordinates);
                     self.cells[new_food_idx] = Cell::Food;
@@ -238,13 +239,13 @@ impl Universe {
                     })
                 }
                 Cell::Empty => {
+                    //clear tail
                     let cell_to_empty = self.snake.pop_back().unwrap();
-                    //move up everything towards head
-                    //this might be faster as a linked list
+                    let cell_to_empty_index = self.get_index(cell_to_empty);
+                    self.cells[cell_to_empty_index] = Cell::Empty;
 
+                    //move head
                     self.snake.push_front(next_head);
-
-                    //update grid
                     let next_head_index = self.get_index(next_head);
                     self.cells[next_head_index] = Cell::Head;
 
