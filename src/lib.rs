@@ -2,6 +2,7 @@ mod utils;
 
 
 use wasm_bindgen::prelude::*;
+use js_sys;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -28,6 +29,7 @@ pub enum Cell {
     Empty
 }
 
+#[repr(u8)]
 pub enum Direction{
     Up,
     Down,
@@ -35,13 +37,57 @@ pub enum Direction{
     Right,
 }
 
+impl Direction{
+    pub fn from_u8(input: u8) -> Option<Direction>{
+        if input == 0{
+            return Some(Direction::Up);
+        }else if input == 1{
+            return Some(Direction::Down);
+        }else if input == 2{
+            return Some(Direction::Left);
+        }else if input == 3{
+            return Some(Direction::Right)
+        }else{
+            return None
+        }
+
+    }
+}
+
 type Coordiantes = (u32, u32);
 
 #[wasm_bindgen]
-pub struct ChagnedCell {
-    coordinate: Coordiantes,
-    newCell: Cell
+pub struct ChangedCells {
+    xs: Vec<u32>,
+    ys: Vec<u32>,
+    cells: Vec<u8>,
+    len: u32,
 }
+
+#[wasm_bindgen]
+impl ChangedCells{
+    #[wasm_bindgen(getter)]
+    pub fn xs(&self) -> js_sys::Uint32Array{
+        return js_sys::Uint32Array::from(&self.xs[..])
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn ys(&self) -> js_sys::Uint32Array{
+        js_sys::Uint32Array::from(&self.ys[..])
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn cells(&self) -> js_sys::Uint8Array{
+        js_sys::Uint8Array::from(&self.cells[..])
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn len(&self) -> u32{
+       self.len
+    }
+
+}
+
 
 #[wasm_bindgen]
 pub struct Universe{
@@ -56,6 +102,10 @@ impl Universe {
     fn get_index(&self, coordinates: Coordiantes) -> usize{
         let (row, column) = coordinates;
         (row * self.width + column) as usize
+    }
+
+    fn get_head_coordinates(&self) -> (u32, u32){
+        self.snake[0]
     }
 
     fn next_move_inbounds(&self, coordinates: Coordiantes) -> bool{
@@ -75,17 +125,32 @@ impl Universe {
 
 
         match direction {
-            Direction::Up => Some((head_row + 1, head_column)),
-            Direction::Down => Some((head_row - 1, head_column)),
+            Direction::Up => Some((head_row - 1, head_column)),
+            Direction::Down => Some((head_row + 1, head_column)),
             Direction::Left => Some((head_row, head_column - 1)),
             Direction::Right => Some((head_row, head_column + 1)),
         }
     }
+
+    fn random_cell_for_food(&self) -> Coordiantes{
+        let r1 = js_sys::Math::random();
+        let r2 = js_sys::Math::random();
+        let x = (r1 * (self.height as f64)) as u32;
+        let y = (r2 * (self.width as f64)) as u32; 
+        let coordinates = (x,y);
+        let index = self.get_index(coordinates);
+        match self.cells[index] {
+            Cell::Empty => coordinates,
+            _ => self.random_cell_for_food(),
+        }
+        
+    }
 }
 
-
+#[wasm_bindgen]
 impl Universe {
     pub fn new() -> Universe {
+        utils::set_panic_hook();
 
         let width = 64;
         let height = 64;
@@ -115,14 +180,15 @@ impl Universe {
         self.height
     }
 
-    pub fn get_head_coordinates(&self) -> (u32, u32){
-        self.snake[0]
-    }
 
-    pub fn tick(&mut self, key_input: Option<Direction>) -> Option<Vec<ChagnedCell>> {
+    pub fn tick(&mut self, key_input: Option<u8>) -> Option<ChangedCells> {
 
-        if let Some(next_head) = match key_input {
-            Some(direction) => self.next_head(&direction),
+        let direction = Direction::from_u8(key_input.unwrap_or(4));
+
+        if let Some(next_head) = match direction {
+            Some(direction) => {
+                self.direction = direction;
+                self.next_head(&self.direction)},
             None =>  self.next_head(&self.direction)
         }{
 
@@ -144,11 +210,17 @@ impl Universe {
                 let new_head_index = self.get_index(next_head);
                 self.cells[new_head_index] = Cell::Head;
 
-                let new_head = ChagnedCell{newCell: Cell::Head, coordinate: next_head};
-                let old_head = ChagnedCell{newCell: Cell::Tail, coordinate: old_head};
-                Some(vec![new_head, old_head])
-
                 //TODO: reseed food
+                let new_food_coordinates = self.random_cell_for_food();
+                let new_food_idx = self.get_index(new_food_coordinates);
+                self.cells[new_food_idx] = Cell::Food;
+
+                Some(ChangedCells{
+                    xs: vec![next_head.0, old_head.0, new_food_coordinates.0],
+                    ys: vec![next_head.1, old_head.1, new_food_coordinates.1],
+                    cells: vec![Cell::Head as u8, Cell::Tail as u8, Cell::Food as u8],
+                    len: 3
+                })
 
             },
             Cell::Empty => {
@@ -166,9 +238,12 @@ impl Universe {
                 let next_head_index = self.get_index(next_head);
                 self.cells[next_head_index] = Cell::Head;
 
-                let chagned_head = ChagnedCell{newCell: Cell::Head, coordinate: next_head};
-                let chagned_tail = ChagnedCell{newCell: Cell::Empty, coordinate: cell_to_empty};
-                Some(vec![chagned_head, chagned_tail])
+                Some(ChangedCells{
+                    xs: vec![next_head.0, cell_to_empty.0],
+                    ys: vec![next_head.1, cell_to_empty.1],
+                    cells: vec![Cell::Head as u8, Cell::Empty as u8],
+                    len: 3
+                })
             },
             _ => None
         }
