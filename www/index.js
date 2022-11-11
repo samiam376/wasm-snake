@@ -6,7 +6,6 @@ const EMPTY = "#FFFFFF";
 const SNAKE = "#000000";
 
 
-// Construct the universe, and get its width and height.
 const universe = Universe.new();
 const width = universe.get_width();
 const height = universe.get_height();
@@ -15,25 +14,22 @@ const canvas = document.getElementById("snake");
 canvas.height = (CELL_SIZE + 1) * height + 1;
 canvas.width = (CELL_SIZE + 1) * width + 1;
 
+const score = document.getElementById("score");
 
 let lastKeyStoke = undefined;
 
 window.addEventListener('keydown', (event) => {
     event.preventDefault();
     if (event.key == 'ArrowUp') {
-        // up arrow
         lastKeyStoke = 0;
     }
     else if (event.code == 'ArrowDown') {
-        // down arrow
         lastKeyStoke=1;
     }
     else if (event.code == 'ArrowLeft') {
-       // left arrow
        lastKeyStoke = 2;
     }
     else if (event.code == 'ArrowRight') {
-       // right arrow
        lastKeyStoke = 3;
     }
 })
@@ -95,6 +91,9 @@ const renderLoop = async () => {
     drawGrid();
     drawCells(changedCells);
     requestAnimationFrame(renderLoop);
+    console.log(changedCells.score)
+
+    score.textContent = "Score: " + changedCells.score
   };
 
 drawGrid();

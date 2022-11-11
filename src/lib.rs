@@ -59,6 +59,7 @@ pub struct ChangedCells {
     ys: Vec<u32>,
     cells: Vec<u8>,
     len: u32,
+    score: usize,
 }
 
 #[wasm_bindgen]
@@ -81,6 +82,11 @@ impl ChangedCells {
     #[wasm_bindgen(getter)]
     pub fn len(&self) -> u32 {
         self.len
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn score(&self) -> usize {
+        self.score
     }
 }
 
@@ -149,13 +155,10 @@ impl Universe {
     }
 
     fn random_cell_for_food(&self) -> Coordiantes {
-        let r1 = js_sys::Math::random();
-        let r2 = js_sys::Math::random();
-        let x = (r1 * (self.height as f64)) as u32;
-        let y = (r2 * (self.width as f64)) as u32;
-        let coordinates = (x, y);
-        let index = self.get_index(coordinates);
-        match self.cells[index] {
+        let r = js_sys::Math::random();
+        let index = ((self.width * self.height) as f64 * r) as u32;
+        let coordinates = (index / self.width, index % self.width);
+        match self.cells[index as usize] {
             Cell::Empty => coordinates,
             _ => self.random_cell_for_food(),
         }
@@ -172,7 +175,7 @@ impl Universe {
         let head_coordinates = (5, 20);
 
         let head_index = head_coordinates.0 * 64 + head_coordinates.1;
-        let food_index = 5 * 64 + 40;
+        let food_index = 5 * 64 + 21;
         let cells = (0..width * height)
             .map(|i| {
                 if i == head_index {
@@ -243,6 +246,7 @@ impl Universe {
                         ys: vec![next_head.1, old_head.1, new_food_coordinates.1],
                         cells: vec![Cell::Head as u8, Cell::Tail as u8, Cell::Food as u8],
                         len: 3,
+                        score: self.snake.len()
                     })
                 }
                 Cell::Empty => {
@@ -261,6 +265,7 @@ impl Universe {
                         ys: vec![next_head.1, cell_to_empty.1],
                         cells: vec![Cell::Head as u8, Cell::Empty as u8],
                         len: 2,
+                        score: self.snake.len(),
                     })
                 }
                 _ => None,
