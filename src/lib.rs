@@ -10,6 +10,13 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
+
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cell {
@@ -93,7 +100,7 @@ impl Universe {
     }
 
     fn get_head_coordinates(&self) -> (u32, u32) {
-        self.snake[0]
+        self.snake.front().unwrap().clone()
     }
 
     fn next_move_inbounds(&self, coordinates: Coordiantes, direction: Direction) -> bool {
@@ -179,7 +186,8 @@ impl Universe {
             })
             .collect();
 
-        let snake = VecDeque::with_capacity((width * height) as usize);
+        let mut snake = VecDeque::with_capacity((width * height) as usize);
+        snake.push_front(head_coordinates);
         let direction = Direction::Right;
 
         Universe {
@@ -209,10 +217,10 @@ impl Universe {
             }
             None => self.next_head(self.direction),
         } {
-            let next_cell_index = self.get_index(next_head);
-            let next_cell = &self.cells[next_cell_index];
+            let next_head_index = self.get_index(next_head);
+            let next_head_cell = &self.cells[next_head_index];
 
-            return match next_cell {
+            return match next_head_cell {
                 Cell::Food => {
                     //add head
                     let old_head = self.snake.front().unwrap().clone();
@@ -223,8 +231,7 @@ impl Universe {
                     self.cells[old_head_index] = Cell::Tail;
 
                     //update new head
-                    let new_head_index = self.get_index(next_head);
-                    self.cells[new_head_index] = Cell::Head;
+                    self.cells[next_head_index] = Cell::Head;
 
                     //update food
                     let new_food_coordinates = self.random_cell_for_food();
@@ -253,7 +260,7 @@ impl Universe {
                         xs: vec![next_head.0, cell_to_empty.0],
                         ys: vec![next_head.1, cell_to_empty.1],
                         cells: vec![Cell::Head as u8, Cell::Empty as u8],
-                        len: 3,
+                        len: 2,
                     })
                 }
                 _ => None,
