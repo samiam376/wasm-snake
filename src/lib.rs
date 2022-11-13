@@ -49,6 +49,15 @@ impl Direction {
             return None;
         }
     }
+
+    pub fn inverse(&self) -> Direction{
+        match self{
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
 }
 
 type Coordiantes = (u32, u32);
@@ -96,9 +105,10 @@ pub struct Universe {
     height: u32,
     cells: Vec<Cell>,
     direction: Direction,
-    snake: VecDeque<Coordiantes>, //list of snake cell coordinates w/ head at 0
+    snake: VecDeque<Coordiantes>, 
 }
 
+#[wasm_bindgen]
 impl Universe {
     fn get_index(&self, coordinates: Coordiantes) -> usize {
         let (row, column) = coordinates;
@@ -211,66 +221,72 @@ impl Universe {
     }
 
     pub fn tick(&mut self, key_input: Option<u8>) -> Option<ChangedCells> {
-        let direction = Direction::from_u8(key_input.unwrap_or(4));
-
-        if let Some(next_head) = match direction {
-            Some(direction) => {
-                self.direction = direction;
-                self.next_head(self.direction)
+        let direction = {
+            let input_direction = Direction::from_u8(key_input.unwrap_or(4));
+            match input_direction {
+                Some(input_direction) if self.cells.len() > 1  && input_direction == self.direction.inverse() =>  self.direction,
+                Some(input_direction) => input_direction,
+                None => self.direction
             }
-            None => self.next_head(self.direction),
-        } {
-            let next_head_index = self.get_index(next_head);
-            let next_head_cell = &self.cells[next_head_index];
+        };
 
-            return match next_head_cell {
-                Cell::Food => {
-                    //add head
-                    let old_head = self.snake.front().unwrap().clone();
-                    self.snake.push_front(next_head);
+        self.direction = direction;
+        let next_head =  match self.next_head(self.direction) {
+            Some(next) => next,
+            None => return None
+        };
 
-                    //update old head
-                    let old_head_index = self.get_index(old_head);
-                    self.cells[old_head_index] = Cell::Tail;
+        
 
-                    //update new head
-                    self.cells[next_head_index] = Cell::Head;
+        let next_head_index = self.get_index(next_head);
+        let next_head_cell = &self.cells[next_head_index];
 
-                    //update food
-                    let new_food_coordinates = self.random_cell_for_food();
-                    let new_food_idx = self.get_index(new_food_coordinates);
-                    self.cells[new_food_idx] = Cell::Food;
+        return match next_head_cell {
+            Cell::Food => {
+                //add head
+                let old_head = self.snake.front().unwrap().clone();
+                self.snake.push_front(next_head);
 
-                    Some(ChangedCells {
-                        xs: vec![next_head.0, old_head.0, new_food_coordinates.0],
-                        ys: vec![next_head.1, old_head.1, new_food_coordinates.1],
-                        cells: vec![Cell::Head as u8, Cell::Tail as u8, Cell::Food as u8],
-                        len: 3,
-                        score: self.snake.len()
-                    })
-                }
-                Cell::Empty => {
-                    //clear tail
-                    let cell_to_empty = self.snake.pop_back().unwrap();
-                    let cell_to_empty_index = self.get_index(cell_to_empty);
-                    self.cells[cell_to_empty_index] = Cell::Empty;
+                //update old head
+                let old_head_index = self.get_index(old_head);
+                self.cells[old_head_index] = Cell::Tail;
 
-                    //move head
-                    self.snake.push_front(next_head);
-                    let next_head_index = self.get_index(next_head);
-                    self.cells[next_head_index] = Cell::Head;
+                //update new head
+                self.cells[next_head_index] = Cell::Head;
 
-                    Some(ChangedCells {
-                        xs: vec![next_head.0, cell_to_empty.0],
-                        ys: vec![next_head.1, cell_to_empty.1],
-                        cells: vec![Cell::Head as u8, Cell::Empty as u8],
-                        len: 2,
-                        score: self.snake.len(),
-                    })
-                }
-                _ => None,
-            };
-        }
-        return None;
+                //update food
+                let new_food_coordinates = self.random_cell_for_food();
+                let new_food_idx = self.get_index(new_food_coordinates);
+                self.cells[new_food_idx] = Cell::Food;
+
+                Some(ChangedCells {
+                    xs: vec![next_head.0, old_head.0, new_food_coordinates.0],
+                    ys: vec![next_head.1, old_head.1, new_food_coordinates.1],
+                    cells: vec![Cell::Head as u8, Cell::Tail as u8, Cell::Food as u8],
+                    len: 3,
+                    score: self.snake.len()
+                })
+            }
+            Cell::Empty => {
+                //clear tail
+                let cell_to_empty = self.snake.pop_back().unwrap();
+                let cell_to_empty_index = self.get_index(cell_to_empty);
+                self.cells[cell_to_empty_index] = Cell::Empty;
+
+                //move head
+                self.snake.push_front(next_head);
+                let next_head_index = self.get_index(next_head);
+                self.cells[next_head_index] = Cell::Head;
+
+                Some(ChangedCells {
+                    xs: vec![next_head.0, cell_to_empty.0],
+                    ys: vec![next_head.1, cell_to_empty.1],
+                    cells: vec![Cell::Head as u8, Cell::Empty as u8],
+                    len: 2,
+                    score: self.snake.len(),
+                })
+            }
+            _ => None,
+        };
     }
 }
